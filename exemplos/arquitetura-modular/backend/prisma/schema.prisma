@@ -1,0 +1,124 @@
+// exemplos/arquitetura-modular/backend/prisma/schema.prisma
+// Schema Prisma de exemplo para a arquitetura modular
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Usuario {
+  id        String   @id @default(uuid())
+  nome      String   @db.VarChar(100)
+  email     String   @unique @db.VarChar(255)
+  senha     String   @db.VarChar(255) // hash Argon2id
+  roles     String[] @default(["user"])
+  ativo     Boolean  @default(true)
+  criadoEm  DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+  deletedAt DateTime?
+
+  @@index([email])
+  @@index([deletedAt])
+  @@map("usuarios")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  tokenHash String   @unique @db.VarChar(255)
+  usuarioId String
+  usuario   Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  expiraEm  DateTime
+  revogado  Boolean  @default(false)
+  criadoEm  DateTime @default(now())
+
+  @@index([usuarioId])
+  @@index([expiraEm])
+  @@map("refresh_tokens")
+}
+
+model Categoria {
+  id        String   @id @default(uuid())
+  nome      String   @db.VarChar(100)
+  descricao String?  @db.Text
+  ativo     Boolean  @default(true)
+  criadoEm  DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+  deletedAt DateTime?
+
+  produtos Produto[]
+
+  @@index([nome])
+  @@index([deletedAt])
+  @@map("categorias")
+}
+
+model Produto {
+  id          String   @id @default(uuid())
+  nome        String   @db.VarChar(200)
+  descricao   String?  @db.Text
+  preco       Decimal  @db.Decimal(10, 2)
+  sku         String   @unique @db.VarChar(50)
+  estoque     Int      @default(0)
+  ativo       Boolean  @default(true)
+  categoriaId String
+  categoria   Categoria @relation(fields: [categoriaId], references: [id], onDelete: Restrict)
+  criadoEm    DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+  deletedAt   DateTime?
+
+  @@index([nome])
+  @@index([sku])
+  @@index([categoriaId])
+  @@index([deletedAt])
+  @@map("produtos")
+}
+
+model Pedido {
+  id           String       @id @default(uuid())
+  usuarioId    String
+  usuario      Usuario      @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+  status       StatusPedido @default(PENDENTE)
+  total        Decimal      @db.Decimal(10, 2)
+  enderecoEntrega Json
+  observacoes  String?
+  criadoEm     DateTime     @default(now())
+  atualizadoEm DateTime     @updatedAt
+  deletedAt    DateTime?
+
+  itens        ItemPedido[]
+
+  @@index([usuarioId])
+  @@index([status])
+  @@index([criadoEm])
+  @@index([deletedAt])
+  @@map("pedidos")
+}
+
+model ItemPedido {
+  id        String  @id @default(uuid())
+  pedidoId   String
+  pedido     Pedido  @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  produtoId  String
+  produto    Produto @relation(fields: [produtoId], references: [id], onDelete: Restrict)
+  quantidade Int
+  precoUnitario Decimal @db.Decimal(10, 2)
+  total      Decimal @db.Decimal(10, 2)
+
+  @@index([pedidoId])
+  @@index([produtoId])
+  @@map("itens_pedido")
+}
+
+enum StatusPedido {
+  PENDENTE
+  CONFIRMADO
+  PROCESSANDO
+  ENVIADO
+  ENTREGUE
+  CANCELADO
+  DEVOLVIDO
+}
